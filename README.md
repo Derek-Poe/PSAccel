@@ -1,6 +1,7 @@
 # PSAccel
 
 **PowerShell GPU Acceleration Toolkit**
+
 GPU-accelerated data filtering for PowerShell using Direct3D 11 compute shaders.
 
 ---
