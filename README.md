@@ -5,7 +5,7 @@ GPU-accelerated data filtering for PowerShell using Direct3D 11 compute shaders.
 
 ---
 
-## 🚀 What is PSAccel?
+## What is PSAccel?
 
 PSAccel is a PowerShell module that introduces GPU acceleration to everyday PowerShell tasks—starting with `Where-Object`. By offloading filtering logic to your system's GPU, even in its early development, PSAccel can deliver up to **4x faster performance** on large datasets compared to native filtering.
 
@@ -16,7 +16,7 @@ This is achieved through a custom C# backend that compiles dynamically-generated
 
 ---
 
-## ✨ Current Feature: `PSA_Where-Object`
+## Current Feature: `PSA_Where-Object`
 
 Use `PSA_Where-Object` (or `?G`) to filter numeric properties with GPU acceleration.
 
@@ -51,7 +51,7 @@ PSAccel dramatically outperforms native `Where-Object` on larger datasets:
 
 ---
 
-## 🧪 Benchmark Yourself
+## Benchmark Yourself
 
 You can generate your own results:
 
@@ -64,7 +64,7 @@ Measure-PsaFilterPerformance -ReturnResults
 
 ---
 
-## 🛠️ Installation
+## Installation
 
 1. Clone or download the repo
 2. Import the module:
