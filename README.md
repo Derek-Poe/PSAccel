@@ -77,6 +77,27 @@ Measure-PsaFilterPerformance -ReturnResults
 
 ---
 
+## Distributed Acceleration
+
+PSAccel isn't limited to local execution. Thanks to PowerShell's remoting capabilities, GPU-accelerated filtering can be dispatched across multiple remote systems—even without installing the module on the target machine.
+
+Because the entire module can be passed inline using `$using:`, there's no requirement to pre-deploy code to your compute nodes. This allows for **zero-install distributed GPU computation** on out-of-the-box Windows systems (with WinRM enabled).
+
+### Example: One-liner remote dispatch
+
+```powershell
+Invoke-Command -ComputerName "RemoteNode01" -ScriptBlock {
+    Add-Type -TypeDefinition $using:psaCode -Language CSharp
+    $using:data | $using:GPU_Where-Object { $_.Value -gt 1000 }
+}
+```
+
+Where `$psaCode` contains your inline `PSAccel.cs`, and `$GPU_Where-Object` is the function defined locally. The `$using:` scope ensures that both data and logic are transmitted without local file dependencies.
+
+> This makes PSAccel suitable for **ad hoc distributed processing**, remote job execution, or even GPU resource pooling across heterogeneous systems.
+
+---
+
 ## Roadmap
 
  Dynamic shader compilation
