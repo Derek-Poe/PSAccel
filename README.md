@@ -1,4 +1,4 @@
-# PSAccel
+# PSAccel (PowerShell Accelerator)
 
 **PowerShell GPU Acceleration Toolkit**
 
@@ -88,11 +88,11 @@ Because the entire module can be passed inline using `$using:`, there's no requi
 ```powershell
 Invoke-Command -ComputerName "RemoteNode01" -ScriptBlock {
     Add-Type -TypeDefinition $using:psaCode -Language CSharp
-    $using:data | $using:GPU_Where-Object { $_.Value -gt 1000 }
+    $using:data | $using:PSA_Where-Object { $_.Value -gt 1000 }
 }
 ```
 
-Where `$psaCode` contains your inline `PSAccel.cs`, and `$GPU_Where-Object` is the function defined locally. The `$using:` scope ensures that both data and logic are transmitted without local file dependencies.
+Where `$psaCode` contains your inline `PSAccel.cs`, and `$PSA_Where-Object` is the function defined locally. The `$using:` scope ensures that both data and logic are transmitted without local file dependencies.
 
 > This makes PSAccel suitable for **ad hoc distributed processing**, remote job execution, or even GPU resource pooling across heterogeneous systems.
 

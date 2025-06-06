@@ -1,7 +1,7 @@
 // PSAccel.cs
 // GPU-accelerated data filtering via Direct3D 11
 // Author: Derek Poe (@Derek-Poe), 2025
-// Version: 0.1.0
+// Version: 0.1.1
 
 using System;
 using System.Runtime.InteropServices;
@@ -372,103 +372,78 @@ public static class PSAccel
         return data;
     }
 
-    public static PSObject[] RunAccelFilterFromObjects(PSObject[] inputObjects, string property, string op, float threshold)
+    public static PSObject[] RunAccelFilterFromObjects(PSObject[] inputObjects, string[] propertyList, string hlsl)
     {
         if (inputObjects == null || inputObjects.Length == 0)
             return new PSObject[0];
 
-        float[] data = new float[inputObjects.Length];
-        for (int i = 0; i < inputObjects.Length; i++)
+        int rows = inputObjects.Length;
+        int cols = propertyList.Length;
+        float[] flatData = new float[rows * cols];
+
+        for (int i = 0; i < rows; i++)
         {
-            PSPropertyInfo prop = inputObjects[i].Properties[property];
-            object val = (prop != null) ? prop.Value : null;
-
-            if (val == null || !float.TryParse(val.ToString(), out data[i]))
+            var obj = inputObjects[i];
+            for (int ii = 0; ii < cols; ii++)
             {
-                OutputDebugString("[Warning] Property '" + property + "' not found or invalid on object[" + i + "]");
-                data[i] = float.NaN;
-            }
+                var prop = obj.Properties[propertyList[ii]];
+                object val = (prop != null) ? prop.Value : null;
+                float parsed;
+                if (val == null || !float.TryParse(val.ToString(), out parsed))
+                {
+                    OutputDebugString("[Warning] Property '" + propertyList[ii] + "' invalid on object[" + i + "]");
+                    parsed = 0f;
+                }
 
-            if (val == null || !float.TryParse(val.ToString(), out data[i]))
-            {
-                data[i] = float.NaN;
+                flatData[i * cols + ii] = parsed;
             }
         }
 
-        for (int i = 0; i < data.Length; i++)
-        {
-            if (float.IsNaN(data[i]))
-                data[i] = 0f;
-        }
+        int[] mask = RunStructuredFilter(flatData, cols, hlsl);
 
-        int[] mask = RunAccelFilter(data, op, threshold);
-
-        PSObject[] results = new PSObject[inputObjects.Length];
+        PSObject[] results = new PSObject[rows];
         int count = 0;
 
         for (int i = 0; i < mask.Length; i++)
         {
             if (mask[i] == 1)
-            {
                 results[count++] = inputObjects[i];
-            }
         }
 
-        // Trim unused entries
         Array.Resize(ref results, count);
         return results;
     }
+    // public static int[] RunAccelFilter(float[] data, string hlsl)
+    // {
+    //     // Marshal -> structured buffer -> dispatch -> read -> mask output
+    //     // Assume this already calls D3DInterop pipeline
+    //     return RunStructuredFilter(data, hlsl);
+    // }
 
-    public static int[] RunAccelFilter(float[] data, string op, float threshold)
+    public static int[] RunStructuredFilter(float[] flatData, int stride , string hlsl)
     {
-        // Marshal -> structured buffer -> dispatch -> read -> mask output
-        // Assume this already calls D3DInterop pipeline
-        return RunStructuredFilter(data, op, threshold);
-    }
+        Init();
 
-    public static int[] RunStructuredFilter(float[] data, string op, float threshold)
-    {
         const uint D3D11_BIND_SHADER_RESOURCE = 0x8;
         const uint D3D11_BIND_UNORDERED_ACCESS = 0x80;
         const uint D3D11_RESOURCE_MISC_BUFFER_STRUCTURED = 0x40;
         const int DXGI_FORMAT_UNKNOWN = 0;
         const int D3D11_UAV_DIMENSION_BUFFEREX = 1;
 
-        Init();
+        int rowCount = flatData.Length / stride;
+        uint bufferLen = (uint)(flatData.Length * sizeof(float));
 
-        // Build dynamic HLSL based on op and threshold
-        string condition = "val > " + threshold.ToString("0.0######") + "f";
-        if (op == "<") condition = "val < " + threshold.ToString("0.0######") + "f";
-        else if (op == "==") condition = "val == " + threshold.ToString("0.0######") + "f";
-        else if (op == ">=") condition = "val >= " + threshold.ToString("0.0######") + "f";
-        else if (op == "<=") condition = "val <= " + threshold.ToString("0.0######") + "f";
-        else if (op == "!=") condition = "val != " + threshold.ToString("0.0######") + "f";
-
-        string hlsl = @"
-StructuredBuffer<float> data : register(t0);
-RWStructuredBuffer<uint> output : register(u0);
-
-[numthreads(256, 1, 1)]
-void CSMain(uint3 DTid : SV_DispatchThreadID)
-{
-    uint i = DTid.x;
-    if (i >= data.Length) return;
-    float val = data[i];
-    output[i] = (" + condition + @") ? 1 : 0;
-}";
-
-        // Prepare shader
+        // Compile HLSL
         ID3DBlob shaderBlob;
         int shaderSize;
         IntPtr shaderPtr = CompileShader(hlsl, out shaderSize, out shaderBlob);
         _pinnedBlob = shaderBlob;
 
-        // Convert float[] to byte[]
-        byte[] inputBytes = new byte[data.Length * 4];
-        Buffer.BlockCopy(data, 0, inputBytes, 0, inputBytes.Length);
+        // Marshal float[] to byte[]
+        byte[] inputBytes = new byte[flatData.Length * sizeof(float)];
+        Buffer.BlockCopy(flatData, 0, inputBytes, 0, inputBytes.Length);
 
-        // Create buffers
-        uint bufferLen = (uint)inputBytes.Length;
+        // Create input buffer (StructuredBuffer<Row>)
         D3D11_BUFFER_DESC inputDesc = new D3D11_BUFFER_DESC
         {
             ByteWidth = bufferLen,
@@ -480,10 +455,11 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
         };
         IntPtr inputBuffer = CreateBuffer(inputDesc, inputBytes);
 
+        // Create output buffer (RWStructuredBuffer<uint>)
         D3D11_BUFFER_DESC outputDesc = new D3D11_BUFFER_DESC
         {
             ByteWidth = bufferLen,
-            Usage = 0, // D3D11_USAGE_DEFAULT
+            Usage = 0,
             BindFlags = D3D11_BIND_UNORDERED_ACCESS,
             CPUAccessFlags = 0,
             MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED,
@@ -491,45 +467,38 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
         };
         IntPtr outputBuffer = CreateBuffer(outputDesc, new byte[bufferLen]);
 
+        // Create UAV for output
         D3D11_UNORDERED_ACCESS_VIEW_DESC outputUAV = new D3D11_UNORDERED_ACCESS_VIEW_DESC
         {
             Format = DXGI_FORMAT_UNKNOWN,
             ViewDimension = D3D11_UAV_DIMENSION_BUFFEREX,
             Buffer_FirstElement = 0,
-            Buffer_NumElements = (uint)data.Length,
+            Buffer_NumElements = (uint)flatData.Length,
             Buffer_Flags = 0
         };
 
         IntPtr srvInput = CreateShaderResourceView(inputBuffer);
         IntPtr uavOutput = CreateUnorderedAccessView(outputBuffer, outputUAV);
 
+        // Bind and dispatch
         IntPtr computeShader = CreateComputeShader(shaderPtr, shaderSize);
         SetComputeShader(computeShader);
-
         SetSRV(srvInput, 0);
         SetUAV(uavOutput, 0);
 
-        Dispatch((uint)Math.Ceiling(data.Length / 256.0), 1, 1);
+        Dispatch((uint)Math.Ceiling(rowCount / 256.0), 1, 1);
 
+        // Copy output to CPU
         IntPtr staging = CreateStagingBuffer(bufferLen);
         CopyResource(staging, outputBuffer);
         byte[] rawMask = ReadStagingBuffer(staging, (int)bufferLen);
 
         OutputDebugString("HLSL: " + hlsl);
 
-        // for (int i = 0; i < data.Length; i++)
-        // {
-        //     OutputDebugString("input data: [" + i + "] " + data[i]);
-        // }
-
-        int[] result = new int[data.Length];
-        for (int i = 0; i < data.Length; i++)
+        // Convert raw mask to int[]
+        int[] result = new int[rowCount];
+        for (int i = 0; i < rowCount; i++)
             result[i] = BitConverter.ToInt32(rawMask, i * 4);
-        // for (int i = 0; i < data.Length; i++)
-        // {
-        //     result[i] = BitConverter.ToInt32(rawMask, i * 4);
-        //     OutputDebugString("output data: [" + i + "] " + result[i]);
-        // }
 
         return result;
     }

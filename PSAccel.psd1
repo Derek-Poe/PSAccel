@@ -3,7 +3,7 @@
     RootModule = 'PSAccel.psm1'
 
     # Version number of this module.
-    ModuleVersion = '0.1.0'
+    ModuleVersion = '0.1.1'
 
     # ID used to uniquely identify this module
     GUID = 'f77fbe47-469b-4ea0-9839-5e5e79b3143f'
