@@ -2,7 +2,7 @@
 
 **PowerShell GPU Acceleration Toolkit**
 
-GPU-accelerated data filtering for PowerShell using Direct3D 11 compute shaders.
+The first fully-native GPU acceleration solution for PowerShell, using Direct3D 11 compute shaders to enable high-speed data filtering directly within scripts. No dependencies. No wrappers. Just raw performance—out-of-the-box on any modern Windows system.
 
 ---
 
