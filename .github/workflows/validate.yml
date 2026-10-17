@@ -1,0 +1,22 @@
+name: Validate
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  module:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Import, manifest and predicate rejection checks
+        shell: powershell
+        run: ./tests/Test-PSAccel.ps1
+      # Hosted runners do not provide the hardware used in the research study.
+      # Run ./tests/Test-PSAccel.ps1 -Gpu on a Windows D3D11 machine separately.
+  research:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python tests/verify_research.py

@@ -1,0 +1,103 @@
+{
+  "PSAccelRepoPath": "C:\\PSAccelExample\\PSAccel",
+  "ExpectedPSAccelCommit": "50aa28cb50da47ae2e97dbc1d1a4795eb05a3502",
+  "OutputRoot": "C:\\PSAccelExample\\PSAccel_Dissertation_Results",
+  "RunFamily": "FrameworkReplacementOfficial",
+  "EnvironmentLabel": "BareMetalFrameworkReplacementOfficial",
+  "DatasetSizes": [100000, 1000000, 10000000],
+  "TrialsPerMethod": 5,
+  "MinimumApprovedTrialsPerMethod": 5,
+  "WarmupRuns": 1,
+  "RandomSeed": 20260610,
+  "RequireWindowsPowerShell51": true,
+  "RequireBareMetal": true,
+  "RequireNvidiaGpu": true,
+  "AllowDirtyRepo": false,
+  "ZipArtifacts": true,
+  "OfficialBaselineMethod": "CPUWhereObject",
+  "OfficialPSAccelMethod": "PSAccelWhereObject",
+  "OfficialMethodsOnly": true,
+  "NoOptimizedCpuBaselines": true,
+  "DatasetShape": "RepositoryStylePSCustomObject_ValueScoreOffset",
+  "WorkloadGroups": [
+    {
+      "WorkloadGroup": "PrimaryFrameworkWorkloads",
+      "DatasetMode": "RepositoryStylePSCustomObject_ValueScoreOffset",
+      "DatasetSizes": [100000, 1000000],
+      "Scenarios": [
+        {
+          "ScenarioName": "DesktopStyle_OneProperty_TopFivePercent",
+          "PredicateName": "ValueTopFivePercent",
+          "PredicateTemplate": "$_.Value -gt {Threshold95}",
+          "SelectivityLabel": "low",
+          "Rationale": "Repository v0.1.0-style one-property replacement workload using native PSCustomObject records."
+        },
+        {
+          "ScenarioName": "DesktopStyle_OffsetScore_LowSelectivity",
+          "PredicateName": "OffsetNot3AndScoreLe3",
+          "PredicateTemplate": "$_.Offset -ne 3 -and $_.Score -le 3",
+          "SelectivityLabel": "low",
+          "Rationale": "Desktop benchmark-style multi-clause numeric predicate with low output materialization."
+        },
+        {
+          "ScenarioName": "DesktopStyle_ValueOffset_MediumSelectivity",
+          "PredicateName": "ValueLe58PercentAndOffsetGt20",
+          "PredicateTemplate": "$_.Value -le {Threshold58} -and $_.Offset -gt 20",
+          "SelectivityLabel": "medium",
+          "Rationale": "Multi-property numeric predicate modeled after repository/Desktop benchmark behavior."
+        },
+        {
+          "ScenarioName": "DesktopStyle_ScoreOffsetValue_HighSelectivity",
+          "PredicateName": "OffsetLe7OrScoreGt19OrValueLe15Percent",
+          "PredicateTemplate": "$_.Offset -le 7 -or $_.Score -gt 19 -or $_.Value -le {Threshold15}",
+          "SelectivityLabel": "high",
+          "Rationale": "High-result multi-property workload that keeps result materialization in scope."
+        }
+      ]
+    },
+    {
+      "WorkloadGroup": "BoundaryWorkloads",
+      "DatasetMode": "RepositoryStyleSyntheticRecordClass_ValueScoreOffset",
+      "DatasetSizes": [100000, 1000000, 10000000],
+      "Scenarios": [
+        {
+          "ScenarioName": "ClassBoundary_OneProperty_TopFivePercent",
+          "PredicateName": "ClassValueTopFivePercent",
+          "PredicateTemplate": "$_.Value -gt {Threshold95}",
+          "SelectivityLabel": "low",
+          "Rationale": "10M-capable boundary workload showing behavior when native Where-Object has cheaper property access than PSCustomObject."
+        }
+      ]
+    }
+  ],
+  "SkippedWorkloadTiers": [
+    {
+      "WorkloadGroup": "PrimaryFrameworkWorkloads",
+      "ScenarioName": "DesktopStyle_OneProperty_TopFivePercent",
+      "DatasetMode": "RepositoryStylePSCustomObject_ValueScoreOffset",
+      "DatasetSize": 10000000,
+      "Reason": "Predeclared memory-safety skip: the aborted 20260610T134355 run showed 10M PSCustomObject native Where-Object warmup exceeded the safe memory/time envelope."
+    },
+    {
+      "WorkloadGroup": "PrimaryFrameworkWorkloads",
+      "ScenarioName": "DesktopStyle_OffsetScore_LowSelectivity",
+      "DatasetMode": "RepositoryStylePSCustomObject_ValueScoreOffset",
+      "DatasetSize": 10000000,
+      "Reason": "Predeclared memory-safety skip: the aborted 20260610T134355 run showed 10M PSCustomObject native Where-Object warmup exceeded the safe memory/time envelope."
+    },
+    {
+      "WorkloadGroup": "PrimaryFrameworkWorkloads",
+      "ScenarioName": "DesktopStyle_ValueOffset_MediumSelectivity",
+      "DatasetMode": "RepositoryStylePSCustomObject_ValueScoreOffset",
+      "DatasetSize": 10000000,
+      "Reason": "Predeclared memory-safety skip: the aborted 20260610T134355 run showed 10M PSCustomObject native Where-Object warmup exceeded the safe memory/time envelope."
+    },
+    {
+      "WorkloadGroup": "PrimaryFrameworkWorkloads",
+      "ScenarioName": "DesktopStyle_ScoreOffsetValue_HighSelectivity",
+      "DatasetMode": "RepositoryStylePSCustomObject_ValueScoreOffset",
+      "DatasetSize": 10000000,
+      "Reason": "Predeclared memory-safety skip: the aborted 20260610T134355 run showed 10M PSCustomObject native Where-Object warmup exceeded the safe memory/time envelope."
+    }
+  ]
+}

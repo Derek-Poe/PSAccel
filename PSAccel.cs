@@ -1,7 +1,7 @@
 // PSAccel.cs
 // GPU-accelerated data filtering via Direct3D 11
 // Author: Derek Poe (@Derek-Poe), 2025
-// Version: 0.1.1
+// Version: 0.2.0
 
 using System;
 using System.Runtime.InteropServices;
@@ -16,7 +16,6 @@ public static class PSAccel
 {
     public static IntPtr Device;
     public static IntPtr Context;
-    private static ID3DBlob _pinnedBlob;
 
     [DllImport("kernel32.dll", CharSet = CharSet.Auto)]
     public static extern void OutputDebugString(string message);
@@ -140,7 +139,9 @@ public static class PSAccel
         if (Device != IntPtr.Zero && Context != IntPtr.Zero) return;
 
         int fl;
-        int Flags = 0x2; // D3D11_CREATE_DEVICE_DEBUG
+        // The optional debug layer requires Windows Graphics Tools. Production
+        // use must also work on machines where that SDK component is absent.
+        int Flags = Environment.GetEnvironmentVariable("PSACCEL_D3D_DEBUG") == "1" ? 0x2 : 0;
         int hr = D3D11CreateDevice(IntPtr.Zero, 1, IntPtr.Zero, Flags, IntPtr.Zero, 0, 7, out Device, out fl, out Context);
 
         if (hr != 0)
@@ -164,14 +165,24 @@ public static class PSAccel
         int hr = D3DCompile(hlsl, hlsl.Length, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero,
                             "CSMain", "cs_5_0", 0, 0, out code, out errors);
 
-        string msg = errors != IntPtr.Zero ? Marshal.PtrToStringAnsi(errors) : "No error string.";
+        string msg = "No error string.";
+        if (errors != IntPtr.Zero)
+        {
+            ID3DBlob errorBlob = (ID3DBlob)Marshal.GetObjectForIUnknown(errors);
+            try { msg = Marshal.PtrToStringAnsi(errorBlob.GetBufferPointer()); }
+            finally { Marshal.ReleaseComObject(errorBlob); Marshal.Release(errors); }
+        }
         OutputDebugString(">> Shader compile result: 0x" + hr.ToString("X"));
         OutputDebugString(">> Shader compile message: " + msg);
 
         if (hr != 0 || code == IntPtr.Zero)
+        {
+            if (code != IntPtr.Zero) Marshal.Release(code);
             throw new Exception("Shader compile failed: 0x" + hr.ToString("X") + " - " + msg);
+        }
 
         blob = (ID3DBlob)Marshal.GetObjectForIUnknown(code);
+        Marshal.Release(code);
         size = (int)blob.GetBufferSize();
         if (size == 0 || size > 65536)
             OutputDebugString("!! Unexpected shader bytecode size: " + size);
@@ -184,14 +195,15 @@ public static class PSAccel
         OutputDebugString(">> Entering CreateBuffer");
 
         IntPtr descPtr = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(D3D11_BUFFER_DESC)));
+        IntPtr pInitData = IntPtr.Zero;
+        IntPtr dataPtr = IntPtr.Zero;
+        try
+        {
         Marshal.StructureToPtr(desc, descPtr, false);
 
         byte[] rawBytes = new byte[Marshal.SizeOf(desc)];
         Marshal.Copy(descPtr, rawBytes, 0, rawBytes.Length);
         OutputDebugString(">> D3D11_BUFFER_DESC Bytes: " + BitConverter.ToString(rawBytes));
-
-        IntPtr pInitData = IntPtr.Zero;
-        IntPtr dataPtr = IntPtr.Zero;
 
         if (data != null && data.Length > 0)
         {
@@ -215,10 +227,6 @@ public static class PSAccel
         IntPtr buffer;
         int hr = create(Device, descPtr, pInitData, out buffer);
 
-        Marshal.FreeHGlobal(descPtr);
-        if (pInitData != IntPtr.Zero) Marshal.FreeHGlobal(pInitData);
-        if (dataPtr != IntPtr.Zero) Marshal.FreeHGlobal(dataPtr);
-
         if (hr != 0)
         {
             OutputDebugString("!! CreateBuffer failed with HRESULT: 0x" + hr.ToString("X"));
@@ -226,6 +234,13 @@ public static class PSAccel
         }
 
         return buffer;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(descPtr);
+            if (pInitData != IntPtr.Zero) Marshal.FreeHGlobal(pInitData);
+            if (dataPtr != IntPtr.Zero) Marshal.FreeHGlobal(dataPtr);
+        }
     }
 
     public static IntPtr CreateShaderResourceView(IntPtr buffer)
@@ -251,6 +266,8 @@ public static class PSAccel
     {
         int size = Marshal.SizeOf(desc);
         IntPtr ptrDesc = Marshal.AllocHGlobal(size);
+        try
+        {
         Marshal.StructureToPtr(desc, ptrDesc, false);
 
         byte[] uavRaw = new byte[Marshal.SizeOf(desc)];
@@ -263,8 +280,6 @@ public static class PSAccel
         IntPtr uav;
         int hr = create(Device, buffer, ptrDesc, out uav);
 
-        Marshal.FreeHGlobal(ptrDesc);
-
         if (hr != 0)
         {
             OutputDebugString("!! CreateUAV failed with HRESULT: 0x" + hr.ToString("X"));
@@ -272,6 +287,8 @@ public static class PSAccel
         }
 
         return uav;
+        }
+        finally { Marshal.FreeHGlobal(ptrDesc); }
     }
 
     public static IntPtr CreateComputeShader(IntPtr shaderBytecode, int bytecodeLength)
@@ -338,7 +355,7 @@ public static class PSAccel
             StructureByteStride = 0
         };
 
-        return CreateBuffer(desc, new byte[byteWidth]); // no initial data needed
+        return CreateBuffer(desc); // staging is filled by CopyResource
     }
 
     public static void CopyResource(IntPtr dst, IntPtr src)
@@ -363,13 +380,14 @@ public static class PSAccel
         if (hr != 0)
             throw new Exception("Map failed: 0x" + hr.ToString("X"));
 
-        byte[] data = new byte[byteCount];
-        Marshal.Copy(mapped.pData, data, 0, byteCount);
-
-        unmap(Context, buffer, 0);
-
-        OutputDebugString(">> Read back staging buffer to CPU.");
-        return data;
+        try
+        {
+            byte[] data = new byte[byteCount];
+            Marshal.Copy(mapped.pData, data, 0, byteCount);
+            OutputDebugString(">> Read back staging buffer to CPU.");
+            return data;
+        }
+        finally { unmap(Context, buffer, 0); }
     }
 
     public static PSObject[] RunAccelFilterFromObjects(PSObject[] inputObjects, string[] propertyList, string hlsl)
@@ -388,12 +406,14 @@ public static class PSAccel
             {
                 var prop = obj.Properties[propertyList[ii]];
                 object val = (prop != null) ? prop.Value : null;
-                float parsed;
-                if (val == null || !float.TryParse(val.ToString(), out parsed))
-                {
-                    OutputDebugString("[Warning] Property '" + propertyList[ii] + "' invalid on object[" + i + "]");
-                    parsed = 0f;
-                }
+                while (val is PSObject) val = ((PSObject)val).BaseObject;
+                if (val == null || !(val is byte || val is sbyte || val is short || val is ushort ||
+                    val is int || val is uint || val is long || val is ulong || val is float ||
+                    val is double || val is decimal))
+                    throw new ArgumentException("Property '" + propertyList[ii] + "' must be numeric on object[" + i + "].");
+                float parsed = Convert.ToSingle(val, System.Globalization.CultureInfo.InvariantCulture);
+                if (float.IsNaN(parsed) || float.IsInfinity(parsed))
+                    throw new ArgumentException("Property '" + propertyList[ii] + "' must be finite on object[" + i + "].");
 
                 flatData[i * cols + ii] = parsed;
             }
@@ -422,6 +442,11 @@ public static class PSAccel
 
     public static int[] RunStructuredFilter(float[] flatData, int stride , string hlsl)
     {
+        if (flatData == null || stride < 1 || flatData.Length % stride != 0)
+            throw new ArgumentException("Input must contain complete rows with a positive stride.");
+        if (flatData.Length == 0) return new int[0];
+        if (flatData.Length / stride > 65535 * 256)
+            throw new ArgumentException("A dispatch supports at most 16,776,960 rows.");
         Init();
 
         const uint D3D11_BIND_SHADER_RESOURCE = 0x8;
@@ -431,13 +456,17 @@ public static class PSAccel
         const int D3D11_UAV_DIMENSION_BUFFEREX = 1;
 
         int rowCount = flatData.Length / stride;
-        uint bufferLen = (uint)(flatData.Length * sizeof(float));
+        uint bufferLen = checked((uint)(flatData.Length * sizeof(float)));
+        uint outputLen = checked((uint)(rowCount * sizeof(int)));
 
-        // Compile HLSL
-        ID3DBlob shaderBlob;
+        ID3DBlob shaderBlob = null;
+        IntPtr inputBuffer = IntPtr.Zero, outputBuffer = IntPtr.Zero;
+        IntPtr srvInput = IntPtr.Zero, uavOutput = IntPtr.Zero;
+        IntPtr computeShader = IntPtr.Zero, staging = IntPtr.Zero;
+        try
+        {
         int shaderSize;
         IntPtr shaderPtr = CompileShader(hlsl, out shaderSize, out shaderBlob);
-        _pinnedBlob = shaderBlob;
 
         // Marshal float[] to byte[]
         byte[] inputBytes = new byte[flatData.Length * sizeof(float)];
@@ -451,21 +480,21 @@ public static class PSAccel
             BindFlags = D3D11_BIND_SHADER_RESOURCE,
             CPUAccessFlags = 0,
             MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED,
-            StructureByteStride = 4
+            StructureByteStride = checked((uint)(stride * sizeof(float)))
         };
-        IntPtr inputBuffer = CreateBuffer(inputDesc, inputBytes);
+        inputBuffer = CreateBuffer(inputDesc, inputBytes);
 
         // Create output buffer (RWStructuredBuffer<uint>)
         D3D11_BUFFER_DESC outputDesc = new D3D11_BUFFER_DESC
         {
-            ByteWidth = bufferLen,
+            ByteWidth = outputLen,
             Usage = 0,
             BindFlags = D3D11_BIND_UNORDERED_ACCESS,
             CPUAccessFlags = 0,
             MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED,
             StructureByteStride = 4
         };
-        IntPtr outputBuffer = CreateBuffer(outputDesc, new byte[bufferLen]);
+        outputBuffer = CreateBuffer(outputDesc, new byte[outputLen]);
 
         // Create UAV for output
         D3D11_UNORDERED_ACCESS_VIEW_DESC outputUAV = new D3D11_UNORDERED_ACCESS_VIEW_DESC
@@ -473,15 +502,15 @@ public static class PSAccel
             Format = DXGI_FORMAT_UNKNOWN,
             ViewDimension = D3D11_UAV_DIMENSION_BUFFEREX,
             Buffer_FirstElement = 0,
-            Buffer_NumElements = (uint)flatData.Length,
+            Buffer_NumElements = (uint)rowCount,
             Buffer_Flags = 0
         };
 
-        IntPtr srvInput = CreateShaderResourceView(inputBuffer);
-        IntPtr uavOutput = CreateUnorderedAccessView(outputBuffer, outputUAV);
+        srvInput = CreateShaderResourceView(inputBuffer);
+        uavOutput = CreateUnorderedAccessView(outputBuffer, outputUAV);
 
         // Bind and dispatch
-        IntPtr computeShader = CreateComputeShader(shaderPtr, shaderSize);
+        computeShader = CreateComputeShader(shaderPtr, shaderSize);
         SetComputeShader(computeShader);
         SetSRV(srvInput, 0);
         SetUAV(uavOutput, 0);
@@ -489,9 +518,9 @@ public static class PSAccel
         Dispatch((uint)Math.Ceiling(rowCount / 256.0), 1, 1);
 
         // Copy output to CPU
-        IntPtr staging = CreateStagingBuffer(bufferLen);
+        staging = CreateStagingBuffer(outputLen);
         CopyResource(staging, outputBuffer);
-        byte[] rawMask = ReadStagingBuffer(staging, (int)bufferLen);
+        byte[] rawMask = ReadStagingBuffer(staging, (int)outputLen);
 
         OutputDebugString("HLSL: " + hlsl);
 
@@ -501,5 +530,16 @@ public static class PSAccel
             result[i] = BitConverter.ToInt32(rawMask, i * 4);
 
         return result;
+        }
+        finally
+        {
+            // Unbind first: the immediate context holds references of its own.
+            SetSRV(IntPtr.Zero, 0);
+            SetUAV(IntPtr.Zero, 0);
+            SetComputeShader(IntPtr.Zero);
+            foreach (IntPtr resource in new[] { staging, computeShader, uavOutput, srvInput, outputBuffer, inputBuffer })
+                if (resource != IntPtr.Zero) Marshal.Release(resource);
+            if (shaderBlob != null) Marshal.ReleaseComObject(shaderBlob);
+        }
     }
 }

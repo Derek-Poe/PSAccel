@@ -1,143 +1,81 @@
-# PSAccel (PowerShell Accelerator)
+# PSAccel
 
-**PowerShell GPU Acceleration Toolkit**
+PSAccel filters PowerShell objects with Direct3D 11 compute shaders. It translates a bounded numeric predicate into HLSL, projects the referenced properties into a structured buffer, runs the predicate on the GPU, and uses the returned mask to select the original objects in order.
 
-The first fully-native GPU acceleration solution for PowerShell, using Direct3D 11 compute shaders to enable high-speed data filtering directly within scripts. No dependencies. No wrappers. Just raw performance—out-of-the-box on any modern Windows system.
+This project combines PowerShell language integration, C# native interop, GPU buffer management, and a controlled study of end-to-end framework performance. It is a numeric-filtering prototype, with a deliberately narrower contract than `Where-Object`.
 
----
+## Try it
 
-## What is PSAccel?
-
-PSAccel is a PowerShell module that introduces GPU acceleration to everyday PowerShell tasks—starting with `Where-Object`. By offloading filtering logic to your system's GPU, even in its early development, PSAccel can deliver up to **4x faster performance** on large datasets compared to native filtering.
-
-This is achieved through a custom C# backend that compiles dynamically-generated HLSL shaders on the fly and binds them to structured buffers via Direct3D 11 interop.
-
-**PSAccel is designed to run on clean, out-of-the-box Windows installations.** No third-party libraries or external tools are required—just PowerShell and your system's built-in Direct3D runtime.
-
-
----
-
-## Current Feature: `PSA_Where-Object`
-
-Use `PSA_Where-Object` (or `?G`) to filter numeric properties with GPU acceleration.
-
-### Supported:
-
-* Comparison operations: `-gt`, `-lt`, `-ge`, `-le`, `-eq`, `-ne`
-* Numeric scalar comparisons (`float`, `int`, `double`)
-* `$_` shorthand and pipeline input
-
-### Example:
+Use 64-bit Windows PowerShell 5.1 on Windows with a Direct3D 11 compute-capable GPU and driver. The module compiles its bundled C# source at import; no external managed library is required. PowerShell 7 is not currently a validated target.
 
 ```powershell
-1..1000000 | ForEach-Object { [pscustomobject]@{ Score = $_ } } | ?G { $_.Score -gt 950000 }
+git clone https://github.com/Derek-Poe/PSAccel.git
+Import-Module ./PSAccel/PSAccel.psd1
+$rows = @(1..1024 | ForEach-Object {
+    [pscustomobject]@{ Id = $_; Score = $_ % 100 }
+})
+$rows | PSA_Where-Object { $_.Score -ge 95 }
 ```
 
----
+The aliases `?G` and `PSA_?` are also available. Pass an existing array through `-InputData $rows` to avoid pipeline accumulation. Imports work from any working directory. Restart PowerShell after changing the bundled C# source: an already loaded .NET type cannot be replaced by reimporting the module.
 
-## 📈 Benchmark Results
+## How it works
 
-PSAccel dramatically outperforms native `Where-Object` on larger datasets:
+```mermaid
+flowchart LR
+    A[PowerShell objects and predicate] --> B[Validate syntax and generate HLSL]
+    B --> C[Project numeric properties to float rows]
+    C --> D[D3D11 structured input buffer]
+    D --> E[Compute shader: 256 threads per group]
+    E --> F[One uint result per row]
+    F --> G[Staging buffer and CPU readback]
+    G --> H[Original matching objects in original order]
+```
 
-| Dataset Size | Native Time | PSA Time | Speedup |
-| ------------ | ----------- | -------- | ------- |
-| 50,000       | 0.90 s      | 0.45 s   | 2.0x    |
-| 100,000      | 2.68 s      | 1.11 s   | 2.4x    |
-| 500,000      | 48.7 s      | 14.3 s   | 3.4x    |
-| 1,000,000    | 193.8 s     | 52.4 s   | 3.7x    |
+`PSAccel.psm1` handles PowerShell binding and shader generation. `PSAccel.cs` uses P/Invoke and COM vtable delegates to create buffers and views, compile HLSL, dispatch work, and read the result mask. Per-call resources are unbound and released even if shader compilation or execution fails. One device and immediate context are retained for the process; concurrent calls into that context are not supported.
 
-📊 See full benchmark data and plots in `/benchmark`
+## Predicate and numeric contract
 
-\\
+- Numeric properties with simple names, such as `$_.Score`.
+- Comparisons `-gt`, `-lt`, `-ge`, `-le`, `-eq`, and `-ne`, joined by `-and`, `-or`, and parentheses.
+- Numeric constants and numeric variables visible to the calling PowerShell scope.
+- Missing, null, string, NaN, and infinite property values are rejected. Method calls, commands, string predicates, statement blocks, and Boolean/numeric coercion are rejected.
 
----
+Properties and variable thresholds are projected to IEEE 754 single precision. Large integers and closely spaced decimal values can therefore compare differently from native PowerShell: integers above 16,777,216 are not all exactly representable. This is not a general semantic replacement for `Where-Object`. Validate the numeric range of a workload before using it. Inputs are accumulated in memory; the GPU path is not streaming. One dispatch supports up to 16,776,960 rows, subject to available memory and device limits.
 
-## Benchmark Yourself
+## Research results
 
-You can generate your own results:
+The June 2026 study measured source commit [`50aa28c`](https://github.com/Derek-Poe/PSAccel/commit/50aa28cb50da47ae2e97dbc1d1a4795eb05a3502), using Windows PowerShell 5.1, an RTX 3080, and a Ryzen 7 3700X. It compared the whole PSAccel framework path against native `Where-Object`, including projection, transfer, dispatch, readback, and output materialization.
+
+| Completed workload | Dataset sizes | Observations | Mean native / PSAccel time ratio |
+| --- | --- | --- | --- |
+| Four PSCustomObject numeric predicates | 100K and 1M | 80 | 1.34–1.39x at 100K; 1.96–2.01x at 1M |
+| One class-based boundary predicate | 100K, 1M and 10M | 30 | 1.39–1.44x |
+
+Each of the 11 scenario/size comparisons has five trials per method. All 110 observations matched the expected **result count**; the study did not establish element-by-element equivalence. The four 10M PSCustomObject conditions were skipped for memory safety. No optimized CPU loop or LINQ baseline was included.
+
+The [research package](research/README.md) includes the observations, warmups, methodology, analysis source, and provenance hashes. Machine labels and local paths have been replaced in an explicitly identified public derivative; measurements are unchanged.
+
+**These timings describe the measured 0.1.1 source, not the current 0.2.0 maintenance version.** Current changes include AST-preserving predicate translation, structured-buffer layout and output sizing, resource cleanup, stricter input validation, portable imports, and an optional debug layer. No new performance claim is made for them. Older exploratory plots under `benchmark/Filtering` remain historical artifacts and should not be combined with the controlled study.
+
+## Validation
 
 ```powershell
-Import-Module .\PSAccel.psm1
-Measure-PsaFilterPerformance -ReturnResults
+# Import, manifest, empty-input and unsupported-predicate checks; no GPU dispatch.
+./tests/Test-PSAccel.ps1
+# Exact output and object identity, multiple properties, partial thread groups,
+# variables, locale handling, invalid data and recovery after shader failure.
+./tests/Test-PSAccel.ps1 -Gpu
 ```
 
-> This will benchmark native vs accelerated filtering and output a CSV + graphs.
-
----
-
-## Installation
-
-1. Clone or download the repo
-2. Import the module:
-
-   ```powershell
-   Import-Module .\PSAccel.psm1
-   ```
-3. Run your accelerated filtering via `PSA_Where-Object`
-
----
-
-## Distributed Acceleration
-
-PSAccel isn't limited to local execution. Thanks to PowerShell's remoting capabilities, GPU-accelerated filtering can be dispatched across multiple remote systems—even without installing the module on the target machine.
-
-Because the entire module can be passed inline using `$using:`, there's no requirement to pre-deploy code to your compute nodes. This allows for **zero-install distributed GPU computation** on out-of-the-box Windows systems (with WinRM enabled).
-
-### Example: One-liner remote dispatch
-
-```powershell
-Invoke-Command -ComputerName "RemoteNode01" -ScriptBlock {
-    Add-Type -TypeDefinition $using:psaCode -Language CSharp
-    $using:data | $using:PSA_Where-Object { $_.Value -gt 1000 }
-}
+```sh
+python tests/verify_research.py
 ```
 
-Where `$psaCode` contains your inline `PSAccel.cs`, and `$PSA_Where-Object` is the function defined locally. The `$using:` scope ensures that both data and logic are transmitted without local file dependencies.
+The GPU suite has passed on Windows PowerShell 5.1 with Intel Iris Xe graphics. Hosted CI runs the non-GPU checks and research integrity checks. The original RTX 3080 study has not been rerun for this release. Set `PSACCEL_D3D_DEBUG=1` before the first dispatch to request the optional D3D11 debug layer; that mode requires Windows Graphics Tools.
 
-> This makes PSAccel suitable for **ad hoc distributed processing**, remote job execution, or even GPU resource pooling across heterogeneous systems.
-
----
-
-## Roadmap
-
- Dynamic shader compilation
-
- Structured buffer dispatch
-
- PowerShell pipeline integration
-
- Multi-property comparison
-
- String filtering support
-
- GPU usage telemetry
-
----
-
-## Why It Matters
-
-PowerShell wasn’t built for high-throughput numeric filtering, but with DirectCompute and a well-optimized interop layer, we can bring parallelism to everyday tasks using PowerShell's user-friendly interface.
-
----
+The [small example](examples/QuickStart.ps1) is suitable for a quick demonstration. The [research harness](benchmark/official/README.md) is a separate, potentially long-running capture workflow pinned to the measured source.
 
 ## License
 
-MIT License. See [LICENSE](./LICENSE).
-
----
-
-## Attribution Request
-If you use PSAccel in your project, research, or publication, I kindly ask that you give credit by referencing this repository or mentioning my name. While not legally required under the MIT License, attribution helps support open development.
-
----
-
-## Author
-
-[Derek Poe](https://github.com/Derek-Poe)
-Coder. Engineer. Doesn't know when to sleep.
-
-
-
-
-> **Disclaimer:** PSAccel is an independent project and is not affiliated with, endorsed by, or supported by Microsoft Corporation.  
-> Windows, Direct3D, and other Microsoft products mentioned herein are trademarks of Microsoft Corporation.
+MIT, copyright Derek Poe. See [LICENSE](LICENSE).

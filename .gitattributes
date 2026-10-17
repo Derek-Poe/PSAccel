@@ -1,0 +1,2 @@
+# Research checksums cover exact exported bytes; do not translate line endings.
+research/** -text

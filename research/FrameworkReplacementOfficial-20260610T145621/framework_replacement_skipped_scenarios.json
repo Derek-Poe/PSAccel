@@ -1,0 +1,38 @@
+[
+    {
+        "WorkloadGroup":  "PrimaryFrameworkWorkloads",
+        "ScenarioName":  "DesktopStyle_OneProperty_TopFivePercent",
+        "DatasetMode":  "RepositoryStylePSCustomObject_ValueScoreOffset",
+        "DatasetSize":  10000000,
+        "Reason":  "Predeclared memory-safety skip: the aborted 20260610T134355 run showed 10M PSCustomObject native Where-Object warmup exceeded the safe memory/time envelope.",
+        "Predeclared":  true,
+        "ExcludedFromPerformanceAnalysis":  true
+    },
+    {
+        "WorkloadGroup":  "PrimaryFrameworkWorkloads",
+        "ScenarioName":  "DesktopStyle_OffsetScore_LowSelectivity",
+        "DatasetMode":  "RepositoryStylePSCustomObject_ValueScoreOffset",
+        "DatasetSize":  10000000,
+        "Reason":  "Predeclared memory-safety skip: the aborted 20260610T134355 run showed 10M PSCustomObject native Where-Object warmup exceeded the safe memory/time envelope.",
+        "Predeclared":  true,
+        "ExcludedFromPerformanceAnalysis":  true
+    },
+    {
+        "WorkloadGroup":  "PrimaryFrameworkWorkloads",
+        "ScenarioName":  "DesktopStyle_ValueOffset_MediumSelectivity",
+        "DatasetMode":  "RepositoryStylePSCustomObject_ValueScoreOffset",
+        "DatasetSize":  10000000,
+        "Reason":  "Predeclared memory-safety skip: the aborted 20260610T134355 run showed 10M PSCustomObject native Where-Object warmup exceeded the safe memory/time envelope.",
+        "Predeclared":  true,
+        "ExcludedFromPerformanceAnalysis":  true
+    },
+    {
+        "WorkloadGroup":  "PrimaryFrameworkWorkloads",
+        "ScenarioName":  "DesktopStyle_ScoreOffsetValue_HighSelectivity",
+        "DatasetMode":  "RepositoryStylePSCustomObject_ValueScoreOffset",
+        "DatasetSize":  10000000,
+        "Reason":  "Predeclared memory-safety skip: the aborted 20260610T134355 run showed 10M PSCustomObject native Where-Object warmup exceeded the safe memory/time envelope.",
+        "Predeclared":  true,
+        "ExcludedFromPerformanceAnalysis":  true
+    }
+]

@@ -1,0 +1,6 @@
+{
+    "Status":  "COMPLETED_FRAMEWORK_REPLACEMENT_OFFICIAL",
+    "CompletedUtc":  "2026-06-10T23:00:12.4057512Z",
+    "Error":  null,
+    "Note":  "Only COMPLETED_FRAMEWORK_REPLACEMENT_OFFICIAL should be treated as official. Preserve aborted artifacts separately."
+}
