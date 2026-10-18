@@ -1,2 +1,4 @@
 # Research checksums cover exact exported bytes; do not translate line endings.
 research/** -text
+# Current-run provenance also covers exact raw CSV/JSON bytes.
+benchmark/current/results/** -text

@@ -20,3 +20,5 @@ jobs:
         with:
           python-version: '3.12'
       - run: python tests/verify_research.py
+      - name: Verify current benchmark evidence and descriptive summaries
+        run: python benchmark/current/summarize.py --verify-only

@@ -1,0 +1,7 @@
+scenario,rows,native_over_psaccel_pipeline,native_over_psaccel_inputdata,psaccel_pipeline_over_csharp,psaccel_inputdata_over_csharp
+SingleProperty,10000,1.831085,5.142479,25.985693,9.252738
+SingleProperty,100000,2.565465,12.905087,25.541029,5.077425
+SingleProperty,500000,3.697586,24.697006,30.846461,4.61827
+ThreeProperty,10000,1.602873,3.828655,10.522797,4.405386
+ThreeProperty,100000,2.390949,9.133596,12.265947,3.21092
+ThreeProperty,500000,3.480478,16.217196,16.609807,3.564739

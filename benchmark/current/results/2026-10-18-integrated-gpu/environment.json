@@ -1,0 +1,64 @@
+﻿{
+    "schema_version":  1,
+    "host_label":  "integrated_gpu_host_01",
+    "started_utc":  "2026-10-18T00:19:15.9420777Z",
+    "module_version":  "0.2.0",
+    "powershell_version":  "5.1.26100.9711",
+    "clr_version":  "4.0.30319.42000",
+    "os_caption":  "Microsoft Windows 11 Pro",
+    "os_version":  "10.0.26200",
+    "cpu":  "11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz",
+    "physical_cores":  4,
+    "logical_processors":  8,
+    "gpus":  [
+                 {
+                     "Name":  "Intel(R) Iris(R) Xe Graphics",
+                     "DriverVersion":  "32.0.101.7026"
+                 }
+             ],
+    "total_memory_gib":  31.71,
+    "available_memory_gib_at_start":  16.18,
+    "sizes":  [
+                  10000,
+                  100000,
+                  500000
+              ],
+    "warmup_runs":  2,
+    "measured_repetitions":  8,
+    "order_seed":  20261018,
+    "timing":  "Stopwatch around complete filter invocation and result-array materialization; excludes generation, compilation/import, warmup, verification and hashing",
+    "correctness":  "Native Where-Object reference; every warmup and measured result checked for exact count, order and BaseObject reference identity; SHA256 of UTF-8 Id lines",
+    "cpu_baseline":  "Specialized single-thread C# loop reads integer PSObject properties directly with Boolean short-circuiting. No preprojection. Assumes fixed valid synthetic schema; not a general Where-Object replacement.",
+    "runtime_state":  "Existing interactive Windows host; foreground/background services and power management not controlled; natural GC retained during timings",
+    "source_files":  [
+                         {
+                             "path":  "PSAccel.psm1",
+                             "sha256":  "32ba57a08577be5fe30fb2a69ef51eb4f6914fb2aa5e8949099326e109d31bf4",
+                             "sha256_utf8_lf_without_bom":  "1a1af5612739a95c1c0ff826fe7ebb795d3f5b95c9140b7b2bae0438e82039ab"
+                         },
+                         {
+                             "path":  "PSAccel.cs",
+                             "sha256":  "044f6fe5218fa70d6a2736b4c421b74c62551c5dda3598adb6899f44e8cd10b8",
+                             "sha256_utf8_lf_without_bom":  "10682804156ef80c87f6e7843d6fcfc9511b50453c85bade56e43764116553db"
+                         },
+                         {
+                             "path":  "PSAccel.psd1",
+                             "sha256":  "71ca6e7737127f815b588d360eb69f1d2b1a9707abcba416e7bc38abdff96aea",
+                             "sha256_utf8_lf_without_bom":  "146dd810371146b634496c734a133751bacc9da87db0248c089619dbd24e70b6"
+                         },
+                         {
+                             "path":  "benchmark/current/Run-CurrentBenchmark.ps1",
+                             "sha256":  "4b280f70013a813255b7b33edd54289a0603a0645e29cfd92d3027db33f758b6",
+                             "sha256_utf8_lf_without_bom":  "4b280f70013a813255b7b33edd54289a0603a0645e29cfd92d3027db33f758b6"
+                         },
+                         {
+                             "path":  "benchmark/current/CpuBaseline.cs",
+                             "sha256":  "49eb85e2e22bdb2f5c343325ec1faeabc002163a00684989e9f1ff873f037525",
+                             "sha256_utf8_lf_without_bom":  "49eb85e2e22bdb2f5c343325ec1faeabc002163a00684989e9f1ff873f037525"
+                         }
+                     ],
+    "completed_utc":  "2026-10-18T00:25:44.9323877Z",
+    "observations":  240,
+    "measured_observations":  192,
+    "observations_sha256":  "ce5f01e30d2e019209e32874951d6a16e175dde117af8a8c4fc985d976fb10a3"
+}

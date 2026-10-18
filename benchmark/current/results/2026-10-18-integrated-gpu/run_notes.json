@@ -1,0 +1,21 @@
+{
+  "capture_date_utc": "2026-10-18",
+  "runtime_source_commit": "93fafed2ef4f3aa5e17c75cae7b08aef9c6fdc57",
+  "host_label": "integrated_gpu_host_01",
+  "quiet_window": "Concurrent automated builds, WSL media checks and heavy tests were paused during measurement. Other portfolio work was limited to text edits and read-only status checks.",
+  "uncontrolled_conditions": [
+    "Ordinary Windows desktop applications and background services",
+    "Power management, CPU/GPU frequency and thermal behavior",
+    "The integrated GPU and CPU share host resources",
+    "Dataset sizes and predicates were evaluated in a fixed order"
+  ],
+  "excluded_from_timing": [
+    "Input generation",
+    "Module import and C# compilation",
+    "Warmup runs",
+    "Correctness checking and result hashing"
+  ],
+  "cpu_baseline_scope": "Specialized compiled single-thread loop over the same PSObject properties and valid integer schema, without preprojection. It does not implement general predicate translation or validation.",
+  "outlier_policy": "Retain every measured observation; report descriptive summaries only.",
+  "historical_study": "The separate 110-observation June 2026 study was not modified or pooled with this capture."
+}
